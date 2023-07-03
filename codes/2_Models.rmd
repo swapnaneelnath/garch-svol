@@ -1,0 +1,82 @@
+---
+title: "Stan Models"
+author: "Swapnaneel Nath"
+date: "2023-04-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#libraries
+
+# install.packages("rstan", repos = "https://cloud.r-project.org", dependencies=TRUE)
+library(rstan)
+
+
+```
+
+# Stan Models
+```{r}
+
+# GARCH Model:
+model_G <- "data {
+  int<lower=0> T;
+  real r[T];
+}
+parameters {
+  real mu;
+  real<lower=0> alpha0;
+  real<lower=0, upper=1> alpha1;
+  real<lower=0, upper=(1-alpha1)> beta1;
+  real lambda1;
+}
+transformed parameters {
+  real lambda[T];
+  lambda[1] = lambda1;
+  for (t in 2:T) {
+    lambda[t] = log(alpha0
+                     + alpha1 * pow((r[t - 1] - mu), 2)
+                     + beta1 * exp(lambda[t - 1]));
+  }
+}
+model {
+  for (t in 1:T) {
+    r[t] ~ normal(mu, exp(lambda[t]/2));
+  }
+  lambda1 ~ cauchy(0,10); 
+  alpha0 ~ lognormal(0,1);
+  alpha1 ~ uniform(0,1);
+  beta1 ~ uniform(0, 1 - alpha1);
+  mu ~ cauchy(0, 10);
+}"
+
+
+# Stochastic Volatility Model:
+model_SV <- "data {
+  int<lower=0> T;   
+  real r[T];      
+}
+parameters {
+  real mu;                     
+  real eta;
+  real<lower=-1, upper=1> phi; 
+  real<lower=0> tau;         
+  real lambda[T];                
+}
+model {
+  phi ~ cauchy(0, 10);
+  tau ~ cauchy(0, 10);
+  mu ~ cauchy(0, 10);
+  eta ~ cauchy(0, 10);
+  lambda[1] ~ normal(eta, tau);
+  for (t in 2:T) {
+    lambda[t] ~ normal(eta + phi * (lambda[t - 1] -  eta), tau);
+  }
+  for (t in 1:T) {
+    r[t] ~ normal(mu, exp(lambda[t] / 2));
+  }
+}
+"
+```
+

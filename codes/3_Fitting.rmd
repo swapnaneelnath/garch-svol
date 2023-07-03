@@ -1,0 +1,55 @@
+---
+title: "Fitting"
+author: "Swapnaneel Nath"
+date: "2023-01-06"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(2023)
+
+#libraries
+
+# install.packages("rstan", repos = "https://cloud.r-project.org", dependencies=TRUE)
+library(rstan)
+
+```
+
+```{r}
+data = data0615 # or data0817,1019
+len = nrow(data)
+```
+
+# Model Fitting
+
+The following will generate 100,000 points each.
+
+```{r}
+# GARCH
+st_G = Sys.time()
+fit_G <- stan(model_code = model_G, data = list(T = len, r = data$Returns), iter = 50000, chains = 4, cores = 4)
+ed_G = Sys.time()
+tt_G = ed_G - st_G
+
+# Stochastic Volatility
+st_SV = Sys.time()
+fit_SV <- stan(model_code = model_SV, data = list(T = len, r = data$Returns), iter = 1000000, chains = 4, cores = 4, thin = 20)
+ed_SV = Sys.time()
+tt_SV = ed_SV - st_SV
+
+# Saving results (Rename accordingly with 0615, 0817, or 1019)
+saveRDS(fit_G, file='fit_G0615.rds')
+saveRDS(fit_SV, file='fit_SV0615.rds') 
+
+
+# Extracting Parameters
+parameters_G = extract(fit_G)   # contains mu, alpha0, alpha1, beta1, lambdas
+parameters_SV = extract(fit_SV) # contains mu, eta, tau, phi, lambdas
+
+```
+
+

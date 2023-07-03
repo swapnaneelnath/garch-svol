@@ -1,0 +1,100 @@
+---
+title: "Data Preparation and Exploration"
+output: html_notebook
+---
+
+# Data Preparation
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#libraries
+library(here)
+library(tidyverse)
+library(vroom) 
+library(lubridate)
+library(ggplot2)
+library(ggthemes)
+```
+
+
+```{r}
+data = vroom(here("SPX_from_2000_to_2022.csv"))
+data = data %>%
+  mutate(Date = mdy(Date)) %>%
+  arrange(Date) %>%
+  mutate(Returns = (Close - lag(Close))/lag(Close)) %>%
+  select(c(Date, Returns)) 
+
+data0615 = data %>% filter(Date > "2005-12-31" & Date < "2016-01-01")
+data16 = data %>% filter(Date > "2015-12-31" & Date < "2017-01-01")
+
+data0817 = data %>% filter(Date > "2007-12-31" & Date < "2018-01-01")
+data18 = data %>% filter(Date > "2017-12-31" & Date < "2019-01-01")
+
+data1019 = data %>% filter(Date > "2009-12-31" & Date < "2020-01-01")
+data20 = data %>% filter(Date > "2019-12-31" & Date < "2021-01-01")
+  
+
+```
+
+# Exploration
+
+```{r}
+#plotting
+png("plot0615.png")
+ggplot(data0615, aes(x=Date, y=Returns)) +
+  geom_point(alpha=0.25, color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2006-2015)")
+dev.off
+
+png("plot16.png")
+ggplot(data16, aes(x=Date, y=Returns)) +
+  geom_line(color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2016)")
+dev.off
+
+png("plot0817.png")
+ggplot(data0817, aes(x=Date, y=Returns)) +
+  geom_point(alpha=0.25, color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2008-2017)")
+dev.off
+
+png("plot18.png")
+ggplot(data18, aes(x=Date, y=Returns)) +
+  geom_line(color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2018)")
+dev.off
+
+png("plot1019.png")
+ggplot(data1019, aes(x=Date, y=Returns)) +
+  geom_point(alpha=0.25, color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2010-2019)")
+dev.off
+
+png("plot20.png")
+ggplot(data20, aes(x=Date, y=Returns)) +
+  geom_line(color = "black") +
+  scale_x_date() +
+  ylim(-0.12, 0.12) +
+  theme(plot.background = element_rect(colour = "grey50")) +
+  ggtitle("Daily S&P500 Returns (2020)")
+dev.off
+
+```
+

@@ -1,0 +1,93 @@
+---
+title: "Comparison"
+author: "Swapnaneel Nath"
+date: "2023-01-06"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(2023)
+
+#libraries
+library(here)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(ggthemes)
+# install.packages("rstan", repos = "https://cloud.r-project.org", dependencies=TRUE)
+library(rstan)
+library(reshape2)
+
+```
+
+
+
+```{r}
+# Select appropriate dataset
+data = data20
+
+# Read appropriate list, 16, 18, or 20
+list_G = readRDS(file = "list_G20.rds")
+list_SV = readRDS(file = "list_SV20.rds")
+
+
+```
+
+```{r}
+# Performance comparison
+
+T = nrow(data)
+
+# GARCH returns
+pred_returns_G = rep(0, T)
+for (t in 1:T) {
+  pred_returns_G[t] = mean(list_G[[t+1]]$pred_returns)
+
+}
+
+# SV returns
+pred_returns_SV = rep(0, T)
+for (t in 1:T) {
+  pred_returns_SV[t] = mean(list_SV[[t+1]]$pred_returns)
+
+}
+
+# Squared Errors
+se_G20 = ((pred_returns_G - data$Returns)^2)
+se_SV20 = ((pred_returns_SV - data$Returns)^2)
+
+```
+```{r}
+# Sum of Squared Errors
+per = 4 #number of periods 12, 4, 1, for months, ...
+perlen = 252/per
+for (b in (1:per)) {
+  begin = 1 + (b-1)*perlen
+  #print(begin)
+  end = begin + perlen -1 
+  #print(end)
+  print(sum(se_SV16[begin:end])) #choose appropriate se
+}
+```
+
+```{r}
+data = cbind(data, "pred_returns_G" = pred_returns_G, "pred_returns_SV" = pred_returns_SV)
+
+data = melt(data, id.vars = "Date")
+
+ggplot(data, aes(Date, value, col=variable)) +
+  geom_line()
+```
+```{r}
+g = data.frame("pred" = list_G[[200]][["pred_returns"]])
+s = data.frame("pred" = list_SV[[200]][["pred_returns"]])
+
+plot_G = ggplot(g, aes(x = pred)) + geom_histogram()
+plot_SV = ggplot(s, aes(x = pred)) + geom_histogram()
+```
+

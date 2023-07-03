@@ -1,0 +1,223 @@
+---
+title: "Prediction"
+author: "Swapnaneel Nath"
+date: "2023-01-06"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(2023)
+
+#libraries
+library(here)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(ggthemes)
+# install.packages("rstan", repos = "https://cloud.r-project.org", dependencies=TRUE)
+library(rstan)
+
+
+```
+
+
+
+```{r}
+# Select appropriate dataset CHOOSE THE RIGHT YEAR
+data = data18
+
+# Read appropriate fit file, 0615, 0817, or 1019
+fit_G = readRDS(file = "fit_G0817.rds")
+fit_SV = readRDS(file = "fit_SV0817.rds")
+
+# Parameter extraction
+parameters_G = extract(fit_G)   # contains mu, alpha0, alpha1, beta1, lambdas
+parameters_SV = extract(fit_SV) # contains mu, eta, phi, tau, lambdas
+
+```
+
+
+```{r}
+# Creating initial dataframe
+
+df_G = data.frame("mu" = parameters_G$mu, "alpha0" = parameters_G$alpha0, "alpha1" = parameters_G$alpha1,"beta1"=parameters_G$beta1, "lambda_t" = parameters_G$lambda[,nrow(data)])
+
+df_SV = data.frame("mu" = parameters_SV$mu, "eta" = parameters_SV$eta, "phi" = parameters_SV$phi, "tau"= parameters_SV$tau, "lambda_t" = parameters_SV$lambda[,nrow(data)])
+
+pred_returns_G = mapply(function(mean, sd) {rnorm(1, mean, sd)}, df_G$mu, exp(df_G$lambda_t/2))
+pred_returns_SV = mapply(function(mean, sd) {rnorm(1, mean, sd)}, df_SV$mu, exp(df_SV$lambda_t/2))
+  ### this has the same effect as
+###for (i in 1:nrow(df_G)) {
+###  pred_returns[i] = rnorm(1, mean=df_G$mu[i], sd=exp(df_G$lambda_t[i] / 2))
+###}
+
+df_G = cbind(df_G, "pred_returns" = pred_returns_G)
+df_SV = cbind(df_SV, "pred_returns" = pred_returns_SV)
+
+```
+
+
+```{r}
+# Assigning Weights
+
+Weights_G = function(df_G){
+  # takes df with garch parameters and pred_returns, outputs normalized weights
+  weights = mapply(function(return, mean, sd) {dnorm(return, mean, sd)}, 
+                   df_G$pred_returns, df_G$mu, exp(df_G$lambda_t / 2))
+  weights = weights / sum(weights)
+  return(weights)
+}
+
+Weights_SV = function(df_SV){
+  # takes df with SV parameters and pred_returns, outputs normalized weights
+  weights = mapply(function(return, mean, sd) {dnorm(return, mean, sd)}, 
+                   df_SV$pred_returns, df_SV$mu, exp(df_SV$lambda_t / 2))
+  weights = weights / sum(weights)
+  return(weights)
+}
+```
+
+```{r}
+# Effective Sample Size
+# = Number of Iterations / (1 + sum of Autocorrelations from lag 1 to infinity)
+#ess = nrow(df) / (1 + 2*(sum(acf(df$lambda_t, plot = FALSE)$acf)-1))
+
+# Resampling
+
+Resample = function(df, weights) {
+  ess = nrow(df) / (1 + 2*(sum(acf(df$lambda_t, plot = FALSE)$acf)-1))
+  threshold = .9
+  if (ess < threshold*nrow(df)) {
+    new_df = df[sample(seq_len(nrow(df)), nrow(df), replace = TRUE, prob = weights), ]
+    print("resampled")
+    return(new_df)    
+  } else {
+    print("same sample")
+    return(df)
+  }
+}
+```
+
+
+```{r}
+# Point parameter estimates for the GARCH model
+mu_G = mean(parameters_G$mu)
+alpha0 = mean(parameters_G$alpha0)
+alpha1 = mean(parameters_G$alpha1)
+beta1 = mean(parameters_G$beta1)
+lambdaT_G = mean(parameters_G$lambda[,ncol(parameters_G$lambda)])
+
+# Point parameter estimates for the Stochastic Volatility model
+mu_SV = mean(parameters_SV$mu)
+eta = mean(parameters_SV$eta)
+phi = mean(parameters_SV$phi)
+tau = mean(parameters_SV$tau)
+lambdaT_SV = parameters_SV$lambda[,ncol(parameters_G$lambda)]
+
+```
+
+```{r}
+# Prediction and Propagation
+# (prediction: single point 1 step forward,
+#  propagation: n points 1 step forward    )
+
+Predict_G = function(prev_lambda, prev_return){
+  pred_lambda = log(alpha0
+                     + alpha1 * ((prev_return - mu_G)^2)
+                     + beta1 * exp(prev_lambda))
+  pred_return = rnorm(1, mean=mu_G, sd=exp(pred_lambda / 2))
+  return(c("pred_lambda" = pred_lambda, "pred_return" = pred_return))
+}
+
+Predict_SV = function(prev_lambda){
+  pred_lambda = rnorm(1, eta + phi * (prev_lambda - eta), tau)
+  pred_return = rnorm(1, mean = mu_SV, exp(pred_lambda/2))
+  return(c("pred_lambda" = pred_lambda, "pred_return" = pred_return))
+}
+
+Propagate_G = function(df) {
+  new_df = df
+  for (i in 1:nrow(new_df)){
+    result = Predict_G(df$lambda_t[i], df$pred_returns[i])
+    new_df$lambda_t[i] = result[1]
+    new_df$pred_returns[i] = result[2]
+  }
+  return(new_df)
+}
+
+Propagate_SV = function(df) {
+  new_df = df
+  for (i in 1:nrow(new_df)){
+    result = Predict_SV(df$lambda_t[i])
+    new_df$lambda_t[i] = result[1]
+    new_df$pred_returns[i] = result[2]
+  }
+  return(new_df)
+}
+
+
+```
+
+```{r}
+# Execution
+
+T = nrow(data) # time steps (SELECT APPROPRIATE YEAR)
+
+# SMC Propagation with Resampling
+# df_G and df_SV are the initial inputs
+
+list_G = list(df_G)
+df = df_G
+st_G = Sys.time()
+for (t in 1:T) {
+  df = Resample(df, weights = Weights_G(df))
+  
+  mu_G <<- mean(df$mu)
+  alpha0 <<- mean(df$alpha0)
+  alpha1 <<- mean(df$alpha1)
+  beta1 <<- mean(df$beta1)
+  lambdaT_G <<- mean(df$lambda_t)
+
+  df = Propagate_G(df)
+  list_G = append(list_G, list(df))
+}
+ed_G = Sys.time()
+tt_G = ed_G - st_G
+
+
+list_SV = list(df_SV)
+df = df_SV
+st_SV = Sys.time()
+for (t in 1:T) {
+  df = Resample(df, weights = Weights_SV(df))
+  
+  mu_SV <<- mean(df$mu)
+  eta <<- mean(df$eta)
+  phi <<- mean(df$phi)
+  tau <<- mean(df$tau)
+  lambdaT_SV <<- mean(df$lambda_t)
+
+  df = Propagate_G(df)
+  list_SV = append(list_SV, list(df))
+}
+ed_SV = Sys.time()
+tt_SV = ed_SV - st_SV
+
+saveRDS(list_G, file='list_G18.rds') 
+saveRDS(list_SV, file='list_SV18.rds')
+```
+
+list_G and list_SV will contain the predicted returns (inter alia) for each
+time step. These lists contain one too many elements. The prediction begins from 
+the second element on.
+
+```{r}
+# Save lists with predictions. PICK APPROPRIATE NAMES.
+saveRDS(list_G, file='list_G18.rds') 
+saveRDS(list_SV, file='list_SV18.rds')
+```
+
