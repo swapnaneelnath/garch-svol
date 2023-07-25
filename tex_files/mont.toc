@@ -1,0 +1,15 @@
+\beamer@sectionintoc {1}{Summary}{2}{0}{1}
+\beamer@sectionintoc {2}{Time Series Models}{3}{0}{2}
+\beamer@sectionintoc {3}{Methodology}{8}{0}{3}
+\beamer@subsectionintoc {3}{1}{Research Questions}{8}{0}{3}
+\beamer@subsectionintoc {3}{2}{Data}{9}{0}{3}
+\beamer@subsectionintoc {3}{3}{Models}{11}{0}{3}
+\beamer@subsectionintoc {3}{4}{Hamiltonian Monte Carlo}{13}{0}{3}
+\beamer@subsectionintoc {3}{5}{Parameter Estimation}{19}{0}{3}
+\beamer@subsectionintoc {3}{6}{Parameter Updates}{20}{0}{3}
+\beamer@subsectionintoc {3}{7}{Prediction and Propagation}{21}{0}{3}
+\beamer@subsectionintoc {3}{8}{Performance Comparison}{22}{0}{3}
+\beamer@sectionintoc {4}{Results}{23}{0}{4}
+\beamer@sectionintoc {5}{Discussion}{32}{0}{5}
+\beamer@sectionintoc {6}{Further Studies}{37}{0}{6}
+\beamer@sectionintoc {7}{End}{41}{0}{7}
